@@ -18,6 +18,13 @@ type ClientAPI interface {
 	CreateMetricEntry(metricEntry interface{}) error
 }
 
+// requestTimeout bounds how long the metrics flush can take. It intentionally overrides
+// newrelic-client-go's 30s default: this call happens after log delivery has already
+// finished, at the tail of an OCI Function invocation whose sync timeout is commonly
+// configured at its 300s ceiling with no headroom to spare, so a slow/unresponsive Metric
+// API must not be allowed to eat meaningfully into that budget.
+const requestTimeout = 5 * time.Second
+
 // LicenseKeyFunc supplies the New Relic license key on demand. Kept as a callback (rather
 // than importing util directly) so this package has no dependency on the util package.
 type LicenseKeyFunc func() (string, error)
@@ -57,7 +64,8 @@ func clientTTL() time.Duration {
 
 func createClient(getLicenseKey LicenseKeyFunc) (ClientAPI, error) {
 	nrRegion, _ := region.Get(region.Name(os.Getenv(common.NewRelicRegion)))
-	cfg := config.Config{Compression: config.Compression.Gzip}
+	timeout := requestTimeout
+	cfg := config.Config{Compression: config.Compression.Gzip, Timeout: &timeout}
 
 	if err := cfg.SetRegion(nrRegion); err != nil {
 		return nil, err
