@@ -1,12 +1,41 @@
 package loggroup
 
 import (
+	"os"
 	"testing"
 	"time"
 
 	"github.com/newrelic/oci-log-integration/logs-function/common"
+	"github.com/newrelic/oci-log-integration/logs-function/metrics"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 )
+
+type mockMetricsClient struct {
+	mock.Mock
+}
+
+func (m *mockMetricsClient) CreateMetricEntry(metricEntry interface{}) error {
+	args := m.Called(metricEntry)
+	return args.Error(0)
+}
+
+func flushedMetricNames(t *testing.T, rec *metrics.Recorder) (map[string]bool, map[string]interface{}) {
+	t.Helper()
+	client := &mockMetricsClient{}
+	client.On("CreateMetricEntry", mock.Anything).Return(nil)
+	assert.NoError(t, rec.Flush(client))
+
+	payload := client.Calls[0].Arguments[0].([]map[string]interface{})
+	metricsList := payload[0]["metrics"].([]map[string]interface{})
+	commonAttrs := payload[0]["common"].(map[string]interface{})["attributes"].(map[string]interface{})
+
+	names := map[string]bool{}
+	for _, m := range metricsList {
+		names[m["name"].(string)] = true
+	}
+	return names, commonAttrs
+}
 
 // TestProcessLogs tests the ProcessLogs function
 func TestProcessLogs(t *testing.T) {
@@ -82,7 +111,7 @@ func TestProcessLogs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			channel := make(chan common.DetailedLogsBatch, 10)
 
-			ProcessLogs(tt.ociLoggingEvent, channel)
+			ProcessLogs(tt.ociLoggingEvent, channel, nil)
 
 			close(channel)
 			var batches []common.DetailedLogsBatch
@@ -188,7 +217,7 @@ func TestSplitLogsIntoBatches(t *testing.T) {
 				"test.attribute": "test.value",
 			}
 
-			splitLogsIntoBatches(tt.logs, tt.maxPayloadSize, commonAttributes, channel)
+			splitLogsIntoBatches(tt.logs, tt.maxPayloadSize, commonAttributes, channel, nil)
 
 			close(channel)
 			var batches []common.DetailedLogsBatch
@@ -218,7 +247,7 @@ func TestSplitLogsIntoBatchesPayloadSizeAccuracy(t *testing.T) {
 	logs := common.OCILoggingEvent{
 		map[string]interface{}{
 			"msg": "a",
-		}, 
+		},
 		map[string]interface{}{
 			"message": "This is a medium-sized log entry that should fit within reasonable payload limits",
 		},
@@ -229,7 +258,7 @@ func TestSplitLogsIntoBatchesPayloadSizeAccuracy(t *testing.T) {
 		"test": "value",
 	}
 
-	splitLogsIntoBatches(logs, 50, commonAttributes, channel)
+	splitLogsIntoBatches(logs, 50, commonAttributes, channel, nil)
 
 	close(channel)
 	var batches []common.DetailedLogsBatch
@@ -257,7 +286,7 @@ func TestProcessLogsWithChannel(t *testing.T) {
 
 	channel := make(chan common.DetailedLogsBatch, 5)
 
-	ProcessLogs(logs, channel)
+	ProcessLogs(logs, channel, nil)
 
 	select {
 	case batch := <-channel:
@@ -288,7 +317,7 @@ func TestProcessLogsAttributes(t *testing.T) {
 
 	channel := make(chan common.DetailedLogsBatch, 1)
 
-	ProcessLogs(logs, channel)
+	ProcessLogs(logs, channel, nil)
 
 	close(channel)
 	batch := <-channel
@@ -309,4 +338,29 @@ func TestProcessLogsAttributes(t *testing.T) {
 	}
 
 	assert.Len(t, detailedLog.CommonData.Attributes, len(expectedAttributes), "Should only have expected attributes")
+}
+
+// TestSplitLogsIntoBatches_PipelineLag verifies forwarder.pipeline.lag is recorded when a
+// record's OCI Logging envelope carries a time field.
+func TestSplitLogsIntoBatches_PipelineLag(t *testing.T) {
+	assert.NoError(t, os.Setenv(common.MetricsTier, common.MetricsTierBasic))
+	defer os.Unsetenv(common.MetricsTier)
+
+	rec := metrics.NewRecorder(nil)
+	channel := make(chan common.DetailedLogsBatch, 10)
+
+	logs := common.OCILoggingEvent{
+		map[string]interface{}{
+			"time":    time.Now().Add(-5 * time.Second).UTC().Format(time.RFC3339),
+			"message": "hi",
+		},
+	}
+
+	splitLogsIntoBatches(logs, 1000, common.LogAttributes{}, channel, rec)
+	close(channel)
+	for range channel {
+	}
+
+	names, _ := flushedMetricNames(t, rec)
+	assert.True(t, names["forwarder.pipeline.lag"], "expected forwarder.pipeline.lag to be recorded")
 }

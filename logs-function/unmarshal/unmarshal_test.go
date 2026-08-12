@@ -38,7 +38,7 @@ func TestUnmarshalJSONOCILoggingData(t *testing.T) {
 	}
 
 	var event Event
-	err := event.Unmarshal(bytes.NewReader(input))
+	err := event.Unmarshal(bytes.NewReader(input), nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, expected.EventType, event.EventType)
@@ -66,7 +66,7 @@ func TestUnmarshalSingleOCILoggingEvent(t *testing.T) {
 	}
 
 	var event Event
-	err := event.Unmarshal(bytes.NewReader(input))
+	err := event.Unmarshal(bytes.NewReader(input), nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, expected.EventType, event.EventType)
@@ -163,7 +163,7 @@ func TestUnmarshalComplexOCILoggingEvent(t *testing.T) {
 	}
 
 	var event Event
-	err := event.Unmarshal(bytes.NewReader(input))
+	err := event.Unmarshal(bytes.NewReader(input), nil)
 	assert.NoError(t, err)
 
 	assert.Equal(t, expected.EventType, event.EventType)

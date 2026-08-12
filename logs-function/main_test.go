@@ -82,11 +82,11 @@ func TestHandleFunctionWithClient(t *testing.T) {
 
 			if tt.expectError {
 				assert.Panics(t, func() {
-					handleFunctionWithClient(ctx, input, output, mockClient)
+					handleFunctionWithClient(ctx, input, output, mockClient, nil)
 				}, tt.description)
 			} else {
 				assert.NotPanics(t, func() {
-					handleFunctionWithClient(ctx, input, output, mockClient)
+					handleFunctionWithClient(ctx, input, output, mockClient, nil)
 
 					time.Sleep(100 * time.Millisecond)
 				}, tt.description)
@@ -114,7 +114,7 @@ func TestHandleFunctionWithClientConcurrency(t *testing.T) {
 
 	done := make(chan bool, 1)
 	go func() {
-		handleFunctionWithClient(ctx, input, output, mockClient)
+		handleFunctionWithClient(ctx, input, output, mockClient, nil)
 		done <- true
 	}()
 
@@ -170,13 +170,13 @@ func TestHandleFunctionErrorCases(t *testing.T) {
 
 			if tt.name == "null input" {
 				assert.NotPanics(t, func() {
-					handleFunctionWithClient(ctx, input, output, mockClient)
+					handleFunctionWithClient(ctx, input, output, mockClient, nil)
 					time.Sleep(50 * time.Millisecond)
 				}, tt.description)
 				mockClient.AssertExpectations(t)
 			} else {
 				assert.Panics(t, func() {
-					handleFunctionWithClient(ctx, input, output, mockClient)
+					handleFunctionWithClient(ctx, input, output, mockClient, nil)
 				}, tt.description)
 			}
 		})

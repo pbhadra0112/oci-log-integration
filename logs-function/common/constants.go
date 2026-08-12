@@ -37,3 +37,18 @@ const LicenseKey = "licenseKey"
 
 // Message channel size
 const MessageChannelSize = 10
+
+// MetricsTier is the name of the environment variable that selects which tier of
+// custom forwarder.* metrics is emitted (none/basic/advanced).
+const MetricsTier = "FORWARDER_METRICS_TIER"
+
+// Metrics tier values accepted by MetricsTier.
+const (
+	MetricsTierNone     = "none"
+	MetricsTierBasic    = "basic"
+	MetricsTierAdvanced = "advanced"
+)
+
+// FunctionNameEnvVar is the environment variable the Fn/OCI Functions runtime injects
+// automatically at invocation time with the function's name.
+const FunctionNameEnvVar = "FN_FN_NAME"

@@ -10,9 +10,40 @@ import (
 	"time"
 
 	"github.com/newrelic/oci-log-integration/logs-function/common"
+	"github.com/newrelic/oci-log-integration/logs-function/metrics"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
+
+// mockMetricsClient is a mock for metrics.ClientAPI, used to assert what ConsumeLogBatches/
+// NewNRClient record via the Recorder without a real New Relic Metric API call.
+type mockMetricsClient struct {
+	mock.Mock
+}
+
+func (m *mockMetricsClient) CreateMetricEntry(metricEntry interface{}) error {
+	args := m.Called(metricEntry)
+	return args.Error(0)
+}
+
+// flushedMetricNames flushes rec through a mock metrics client and returns the set of metric
+// names that were sent, plus the payload's common attributes.
+func flushedMetricNames(t *testing.T, rec *metrics.Recorder) (map[string]bool, map[string]interface{}) {
+	t.Helper()
+	client := &mockMetricsClient{}
+	client.On("CreateMetricEntry", mock.Anything).Return(nil)
+	assert.NoError(t, rec.Flush(client))
+
+	payload := client.Calls[0].Arguments[0].([]map[string]interface{})
+	metricsList := payload[0]["metrics"].([]map[string]interface{})
+	commonAttrs := payload[0]["common"].(map[string]interface{})["attributes"].(map[string]interface{})
+
+	names := map[string]bool{}
+	for _, m := range metricsList {
+		names[m["name"].(string)] = true
+	}
+	return names, commonAttrs
+}
 
 // Test helper function to reset NewRelic client cache
 func resetNRClient() {
@@ -54,7 +85,7 @@ func TestConsumeLogBatches(t *testing.T) {
 
 	ctx := context.TODO()
 	wg.Add(1)
-	go ConsumeLogBatches(ctx, channel, wg, mockNRClient)
+	go ConsumeLogBatches(ctx, channel, wg, mockNRClient, nil)
 	close(channel)
 	wg.Wait()
 	mockNRClient.AssertNumberOfCalls(t, "CreateLogEntry", 1)
@@ -189,7 +220,7 @@ func TestNewNRClient_CacheExpiration(t *testing.T) {
 // TestConsumeLogBatches_ErrorHandling tests error handling in log processing
 func TestConsumeLogBatches_ErrorHandling(t *testing.T) {
 	mockNRClient := new(MockNRClient)
-	
+
 	mockNRClient.On("CreateLogEntry", mock.Anything).Return(assert.AnError)
 
 	channel := make(chan common.DetailedLogsBatch, 2)
@@ -216,9 +247,65 @@ func TestConsumeLogBatches_ErrorHandling(t *testing.T) {
 
 	ctx := context.TODO()
 	wg.Add(1)
-	go ConsumeLogBatches(ctx, channel, wg, mockNRClient)
+	go ConsumeLogBatches(ctx, channel, wg, mockNRClient, nil)
 	close(channel)
 	wg.Wait()
-	
+
 	mockNRClient.AssertNumberOfCalls(t, "CreateLogEntry", 2)
+}
+
+// TestConsumeLogBatches_RecordsDeliveredMetrics verifies a successful delivery records
+// forwarder.records.delivered and forwarder.delivery.duration.
+func TestConsumeLogBatches_RecordsDeliveredMetrics(t *testing.T) {
+	assert.NoError(t, os.Setenv(common.MetricsTier, common.MetricsTierBasic))
+	defer os.Unsetenv(common.MetricsTier)
+
+	mockNRClient := new(MockNRClient)
+	mockNRClient.On("CreateLogEntry", mock.Anything).Return(nil)
+
+	rec := metrics.NewRecorder(nil)
+	channel := make(chan common.DetailedLogsBatch, 1)
+	channel <- []common.DetailedLog{{Entries: common.LogData{
+		map[string]interface{}{"message": "one"},
+		map[string]interface{}{"message": "two"},
+	}}}
+
+	ctx := context.TODO()
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	go ConsumeLogBatches(ctx, channel, wg, mockNRClient, rec)
+	close(channel)
+	wg.Wait()
+
+	names, _ := flushedMetricNames(t, rec)
+	assert.True(t, names["forwarder.records.delivered"])
+	assert.True(t, names["forwarder.delivery.duration"])
+	assert.False(t, names["forwarder.records.dropped"])
+}
+
+// TestConsumeLogBatches_RecordsDroppedMetrics verifies a failed delivery records
+// forwarder.records.dropped instead of the success metrics.
+func TestConsumeLogBatches_RecordsDroppedMetrics(t *testing.T) {
+	assert.NoError(t, os.Setenv(common.MetricsTier, common.MetricsTierBasic))
+	defer os.Unsetenv(common.MetricsTier)
+
+	mockNRClient := new(MockNRClient)
+	mockNRClient.On("CreateLogEntry", mock.Anything).Return(assert.AnError)
+
+	rec := metrics.NewRecorder(nil)
+	channel := make(chan common.DetailedLogsBatch, 1)
+	channel <- []common.DetailedLog{{Entries: common.LogData{
+		map[string]interface{}{"message": "one"},
+	}}}
+
+	ctx := context.TODO()
+	wg := new(sync.WaitGroup)
+	wg.Add(1)
+	go ConsumeLogBatches(ctx, channel, wg, mockNRClient, rec)
+	close(channel)
+	wg.Wait()
+
+	names, _ := flushedMetricNames(t, rec)
+	assert.True(t, names["forwarder.records.dropped"])
+	assert.False(t, names["forwarder.records.delivered"])
 }

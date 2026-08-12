@@ -9,6 +9,9 @@ This repository contains integrations to forward logs from Oracle Cloud Infrastr
 * [New Relic Ingest Key & API Key](https://docs.newrelic.com/docs/apis/intro-apis/new-relic-api-keys/#license-key)
 * OCI user with Cloud Administrator role to create resources/stacks
 
+## Custom forwarder metrics
+
+The log forwarder Function can emit its own `forwarder.*` custom metrics (record counts, delivery success/loss, delivery latency, pipeline lag) directly to New Relic's Metric API, in addition to forwarding logs. This is opt-in via the `metrics_tier` Terraform variable (`none` / `basic` / `advanced`; default `none`). Only the `basic` tier is implemented today; `advanced` is reserved for a follow-up.
 
 ## Contributing
 

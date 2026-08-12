@@ -60,3 +60,14 @@ variable "image_version" {
   description = "The version of the Docker image for the New Relic function for the region."
   default     = "latest"
 }
+
+variable "metrics_tier" {
+  type        = string
+  default     = "none"
+  description = "Tier of forwarder.* custom metrics the function emits about itself (in addition to New Relic's own ingested logs): none (no custom metrics) or basic (core health metrics: invocations, records received/delivered/dropped, delivery duration, pipeline lag). An advanced tier with deeper root-cause/tuning metrics is planned but not yet implemented. Custom metrics are billed by New Relic on ingest; none is the default so this is opt-in."
+
+  validation {
+    condition     = contains(["none", "basic"], var.metrics_tier)
+    error_message = "metrics_tier must be one of: none, basic."
+  }
+}
