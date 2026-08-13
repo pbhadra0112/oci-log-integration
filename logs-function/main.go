@@ -90,8 +90,16 @@ func handleFunctionWithClient(ctx context.Context, in io.Reader, _ io.Writer, nr
 }
 
 // flushMetrics forwards this invocation's accumulated custom metrics to New Relic's Metric
-// API, reusing the same license key already fetched for the logs client.
+// API, reusing the same license key already fetched for the logs client. It runs inside the
+// same deferred block that recovers the handler's own panics, so a failure here must never
+// propagate and mask (or crash on top of) the invocation's real outcome.
 func flushMetrics(rec *metrics.Recorder) {
+	defer func() {
+		if p := recover(); p != nil {
+			log.Errorf("recovered panic while flushing custom metrics: %v", p)
+		}
+	}()
+
 	if rec == nil || rec.Tier() == metrics.TierNone {
 		return
 	}
