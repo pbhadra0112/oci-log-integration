@@ -7,35 +7,9 @@ import (
 
 	"github.com/newrelic/oci-log-integration/logs-function/common"
 	"github.com/newrelic/oci-log-integration/logs-function/metrics"
+	"github.com/newrelic/oci-log-integration/logs-function/metrics/metricstest"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 )
-
-type mockMetricsClient struct {
-	mock.Mock
-}
-
-func (m *mockMetricsClient) CreateMetricEntry(metricEntry interface{}) error {
-	args := m.Called(metricEntry)
-	return args.Error(0)
-}
-
-func flushedMetricNames(t *testing.T, rec *metrics.Recorder) (map[string]bool, map[string]interface{}) {
-	t.Helper()
-	client := &mockMetricsClient{}
-	client.On("CreateMetricEntry", mock.Anything).Return(nil)
-	assert.NoError(t, rec.Flush(client))
-
-	payload := client.Calls[0].Arguments[0].([]map[string]interface{})
-	metricsList := payload[0]["metrics"].([]map[string]interface{})
-	commonAttrs := payload[0]["common"].(map[string]interface{})["attributes"].(map[string]interface{})
-
-	names := map[string]bool{}
-	for _, m := range metricsList {
-		names[m["name"].(string)] = true
-	}
-	return names, commonAttrs
-}
 
 // TestProcessLogs tests the ProcessLogs function
 func TestProcessLogs(t *testing.T) {
@@ -361,6 +335,6 @@ func TestSplitLogsIntoBatches_PipelineLag(t *testing.T) {
 	for range channel {
 	}
 
-	names, _ := flushedMetricNames(t, rec)
+	names := metricstest.FlushedMetricNames(t, rec)
 	assert.True(t, names["forwarder.pipeline.lag"], "expected forwarder.pipeline.lag to be recorded")
 }
