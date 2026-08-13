@@ -19,6 +19,7 @@ type Recorder struct {
 	commonAttrs map[string]interface{}
 	counts      map[string]*countPoint
 	summaries   map[string]*summaryPoint
+	createdAt   time.Time
 }
 
 type countPoint struct {
@@ -47,6 +48,7 @@ func NewRecorder(commonAttrs map[string]interface{}) *Recorder {
 		commonAttrs: commonAttrs,
 		counts:      make(map[string]*countPoint),
 		summaries:   make(map[string]*summaryPoint),
+		createdAt:   time.Now(),
 	}
 }
 
@@ -132,20 +134,33 @@ func (r *Recorder) Flush(client ClientAPI) error {
 	}
 
 	now := time.Now().Unix()
+	// The Metric API silently drops count/summary data points that omit interval.ms (it's a
+	// required field for those types, not just recommended) -- rather than erroring, so this
+	// is easy to miss. Use the recorder's own lifetime as the window it's reporting over.
+	intervalMs := time.Since(r.createdAt).Milliseconds()
+	if intervalMs < 1 {
+		intervalMs = 1
+	}
 	dataPoints := make([]map[string]interface{}, 0, len(r.counts)+len(r.summaries))
 
 	for _, p := range r.counts {
-		dataPoints = append(dataPoints, map[string]interface{}{
-			"name":       p.name,
-			"type":       "count",
-			"value":      p.value,
-			"timestamp":  now,
-			"attributes": p.attrs,
-		})
+		dp := map[string]interface{}{
+			"name":        p.name,
+			"type":        "count",
+			"value":       p.value,
+			"timestamp":   now,
+			"interval.ms": intervalMs,
+		}
+		// The Metric API rejects a data point outright if "attributes" is present but
+		// null (as opposed to omitted or an object), so only set it when non-empty.
+		if len(p.attrs) > 0 {
+			dp["attributes"] = p.attrs
+		}
+		dataPoints = append(dataPoints, dp)
 	}
 
 	for _, p := range r.summaries {
-		dataPoints = append(dataPoints, map[string]interface{}{
+		dp := map[string]interface{}{
 			"name":      p.name,
 			"type":      "summary",
 			"timestamp": now,
@@ -155,8 +170,12 @@ func (r *Recorder) Flush(client ClientAPI) error {
 				"min":   p.min,
 				"max":   p.max,
 			},
-			"attributes": p.attrs,
-		})
+			"interval.ms": intervalMs,
+		}
+		if len(p.attrs) > 0 {
+			dp["attributes"] = p.attrs
+		}
+		dataPoints = append(dataPoints, dp)
 	}
 
 	payload := []map[string]interface{}{

@@ -130,6 +130,58 @@ func TestRecorder_FlushSendsPayload(t *testing.T) {
 	assert.Len(t, metricsList, 2)
 }
 
+// The Metric API requires interval.ms on count/summary data points and rejects a data
+// point outright if "attributes" is present but JSON null (as opposed to omitted or an
+// object) -- both failure modes are accepted with 202 and silently dropped, so there's no
+// error to notice without an explicit assertion on the wire payload.
+func TestRecorder_FlushDataPointsIncludeIntervalMs(t *testing.T) {
+	setTier(t, common.MetricsTierBasic)
+	r := NewRecorder(nil)
+	r.Count(TierBasic, "forwarder.records.received", 2, nil)
+	r.Summary(TierBasic, "forwarder.delivery.duration", 1.5, nil)
+
+	client := &mockClient{}
+	client.On("CreateMetricEntry", mock.Anything).Return(nil)
+	assert.NoError(t, r.Flush(client))
+
+	payload := client.Calls[0].Arguments[0].([]map[string]interface{})
+	metricsList := payload[0]["metrics"].([]map[string]interface{})
+	assert.Len(t, metricsList, 2)
+	for _, dp := range metricsList {
+		intervalMs, ok := dp["interval.ms"].(int64)
+		assert.True(t, ok, "interval.ms must be present on %s", dp["name"])
+		assert.Positive(t, intervalMs)
+	}
+}
+
+func TestRecorder_FlushOmitsAttributesWhenEmptyInsteadOfNull(t *testing.T) {
+	setTier(t, common.MetricsTierBasic)
+	r := NewRecorder(nil)
+	r.Count(TierBasic, "forwarder.records.received", 2, nil)
+	r.Count(TierBasic, "forwarder.invocations", 1, map[string]interface{}{"status": "success"})
+
+	client := &mockClient{}
+	client.On("CreateMetricEntry", mock.Anything).Return(nil)
+	assert.NoError(t, r.Flush(client))
+
+	payload := client.Calls[0].Arguments[0].([]map[string]interface{})
+	metricsList := payload[0]["metrics"].([]map[string]interface{})
+
+	var withNilAttrs, withAttrs map[string]interface{}
+	for _, dp := range metricsList {
+		if dp["name"] == "forwarder.records.received" {
+			withNilAttrs = dp
+		} else {
+			withAttrs = dp
+		}
+	}
+
+	_, present := withNilAttrs["attributes"]
+	assert.False(t, present, "attributes key must be omitted, not set to null, when there are no attributes")
+
+	assert.Equal(t, map[string]interface{}{"status": "success"}, withAttrs["attributes"])
+}
+
 func TestRecorder_SetDimensionIgnoresEmpty(t *testing.T) {
 	setTier(t, common.MetricsTierBasic)
 	r := NewRecorder(map[string]interface{}{"cloud": "oci"})
