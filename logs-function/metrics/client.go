@@ -11,7 +11,10 @@ import (
 	"github.com/newrelic/newrelic-client-go/v2/pkg/region"
 
 	"github.com/newrelic/oci-log-integration/logs-function/common"
+	"github.com/newrelic/oci-log-integration/logs-function/logger"
 )
+
+var log = logger.NewLogrusLogger(logger.WithDebugLevel())
 
 // ClientAPI is the subset of newrelic-client-go's Metrics client this package depends on.
 type ClientAPI interface {
@@ -63,7 +66,10 @@ func clientTTL() time.Duration {
 }
 
 func createClient(getLicenseKey LicenseKeyFunc) (ClientAPI, error) {
-	nrRegion, _ := region.Get(region.Name(os.Getenv(common.NewRelicRegion)))
+	nrRegion, err := region.Get(region.Name(os.Getenv(common.NewRelicRegion)))
+	if err != nil {
+		log.Warnf("could not resolve NEW_RELIC_REGION %q, falling back to default region: %v", os.Getenv(common.NewRelicRegion), err)
+	}
 	timeout := requestTimeout
 	cfg := config.Config{Compression: config.Compression.Gzip, Timeout: &timeout}
 

@@ -115,7 +115,10 @@ func getClientTTL() time.Duration {
 
 // createNRClient creates a new NewRelic client instance
 func createNRClient() (NewRelicClientAPI, error) {
-	nrRegion, _ := region.Get(region.Name(os.Getenv(common.NewRelicRegion)))
+	nrRegion, err := region.Get(region.Name(os.Getenv(common.NewRelicRegion)))
+	if err != nil {
+		log.Warnf("could not resolve NEW_RELIC_REGION %q, falling back to default region: %v", os.Getenv(common.NewRelicRegion), err)
+	}
 	var nrClient logging.Logs
 	cfg := config.Config{
 		Compression: config.Compression.Gzip,

@@ -5,6 +5,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"os"
+	"sync"
+	"time"
 
 	ociCommon "github.com/oracle/oci-go-sdk/v65/common"
 	"github.com/oracle/oci-go-sdk/v65/common/auth"
@@ -89,9 +91,33 @@ func newOCISecretsManagerClient() (OCISecretsManagerAPI, error) {
 	return &secretsClient, nil
 }
 
-// GetLicenseKey returns the license key from the OCI Secrets Manager.
-// It returns the New Relic Ingest License key and an error if any.
+var (
+	licenseKeyCacheMu   sync.Mutex
+	cachedLicenseKey    string
+	cachedLicenseKeyErr error
+	licenseKeyCachedAt  time.Time
+)
+
+// GetLicenseKey returns the license key from the OCI Secrets Manager. TTL-cached (same
+// window as the New Relic client caches, see getClientTTL) so that the logs client and the
+// metrics client -- both of which call this -- share a single Vault fetch per cache window
+// instead of one each.
 func GetLicenseKey() (key string, err error) {
+	licenseKeyCacheMu.Lock()
+	defer licenseKeyCacheMu.Unlock()
+
+	if !licenseKeyCachedAt.IsZero() && time.Since(licenseKeyCachedAt) < getClientTTL() {
+		return cachedLicenseKey, cachedLicenseKeyErr
+	}
+
+	cachedLicenseKey, cachedLicenseKeyErr = fetchLicenseKey()
+	licenseKeyCachedAt = time.Now()
+
+	return cachedLicenseKey, cachedLicenseKeyErr
+}
+
+// fetchLicenseKey does the actual Vault round-trip, uncached.
+func fetchLicenseKey() (string, error) {
 	ctx := context.Background()
 	log.Debug("fetching license key from OCI vault")
 

@@ -7,6 +7,7 @@ import (
 	"errors"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/oracle/oci-go-sdk/v65/secrets"
 	"github.com/stretchr/testify/assert"
@@ -244,6 +245,16 @@ func TestGetLicenseKeyWithMockClient(t *testing.T) {
 	}
 }
 
+// resetLicenseKeyCache clears GetLicenseKey's TTL cache between test cases that expect a
+// fresh Vault fetch, mirroring resetNRClient in newrelic_client_util_test.go.
+func resetLicenseKeyCache() {
+	licenseKeyCacheMu.Lock()
+	defer licenseKeyCacheMu.Unlock()
+	cachedLicenseKey = ""
+	cachedLicenseKeyErr = nil
+	licenseKeyCachedAt = time.Time{}
+}
+
 // Helper function to extract license key from secret (for testing)
 func extractLicenseKeyFromSecret(secretValue string) (string, error) {
 	if secretValue == "" {
@@ -316,6 +327,26 @@ func TestGetSecretFromOCIVault_EdgeCases(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestGetLicenseKey_CachesWithinTTL verifies repeated calls within the TTL window reuse the
+// cached result instead of hitting Vault again, mirroring
+// TestNewNRClient_CacheExpiration's approach for the logs client cache.
+func TestGetLicenseKey_CachesWithinTTL(t *testing.T) {
+	resetLicenseKeyCache()
+	assert.NoError(t, os.Setenv(common.ClientTTL, "1"))
+	defer os.Unsetenv(common.ClientTTL)
+
+	_, _ = GetLicenseKey()
+	firstCachedAt := licenseKeyCachedAt
+
+	_, _ = GetLicenseKey()
+	assert.Equal(t, firstCachedAt, licenseKeyCachedAt, "second call within TTL should not re-fetch")
+
+	time.Sleep(2 * time.Second)
+
+	_, _ = GetLicenseKey()
+	assert.True(t, licenseKeyCachedAt.After(firstCachedAt), "call after TTL expiration should re-fetch")
 }
 
 func TestGetLicenseKeyError(t *testing.T) {
@@ -399,6 +430,7 @@ func TestGetLicenseKeyError(t *testing.T) {
 				}
 			}
 
+			resetLicenseKeyCache()
 			key, err := GetLicenseKey()
 
 			if err == nil {
