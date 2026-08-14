@@ -4,6 +4,7 @@ package util
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"strconv"
 	"sync"
@@ -31,16 +32,17 @@ type NewRelicClientAPI interface {
 
 // ConsumeLogBatches consumes log batches from a channel and creates log entries using the provided NewRelicClientAPI.
 // The function returns when the channel is closed or the context is cancelled. rec may be nil.
-func ConsumeLogBatches(ctx context.Context, channel <-chan common.DetailedLogsBatch, wg *sync.WaitGroup, nrClientAPI NewRelicClientAPI, rec *metrics.Recorder) {
+func ConsumeLogBatches(ctx context.Context, channel <-chan BatchMessage, wg *sync.WaitGroup, nrClientAPI NewRelicClientAPI, rec *metrics.Recorder) {
 	// Defer the Done() method of the WaitGroup to indicate that the goroutine has finished processing
 	defer wg.Done()
 
 	for {
 		select {
-		case batch, ok := <-channel:
+		case msg, ok := <-channel:
 			if !ok {
 				return
 			}
+			batch := msg.Batch
 
 			recordCount := countBatchEntries(batch)
 
@@ -52,12 +54,16 @@ func ConsumeLogBatches(ctx context.Context, channel <-chan common.DetailedLogsBa
 				log.Errorf("error posting Log entry: %v", err)
 				rec.Summary(metrics.TierBasic, "forwarder.delivery.duration", duration, map[string]interface{}{"status": "error"})
 				rec.Count(metrics.TierBasic, "forwarder.records.dropped", float64(recordCount), map[string]interface{}{"reason": "delivery_error"})
+				rec.Count(metrics.TierAdvanced, "forwarder.delivery.errors", 1, map[string]interface{}{"error_class": fmt.Sprintf("%T", err), "status": "error"})
 				// Continue processing other batches instead of terminating
 				continue
 			}
 
 			rec.Summary(metrics.TierBasic, "forwarder.delivery.duration", duration, map[string]interface{}{"status": "success"})
 			rec.Count(metrics.TierBasic, "forwarder.records.delivered", float64(recordCount), map[string]interface{}{"status": "success"})
+			// SizeBytes was already computed once while building the batch (loggroup);
+			// reuse it here instead of re-marshaling the whole batch just to measure it.
+			rec.Count(metrics.TierAdvanced, "forwarder.bytes.delivered", float64(msg.SizeBytes), nil)
 		case <-ctx.Done():
 			// Context has been cancelled, exit the goroutine
 			return
@@ -76,20 +82,22 @@ func countBatchEntries(batch common.DetailedLogsBatch) int {
 
 // NewNRClient Initializes a new NRClient with debug level and region
 // It returns a NewRelicClientAPI interface and an error if there is a problem setting the region.
-// Uses TTL-based caching for performance in OCI Function environment.
-func NewNRClient() (NewRelicClientAPI, error) {
+// Uses TTL-based caching for performance in OCI Function environment. rec may be nil.
+func NewNRClient(rec *metrics.Recorder) (NewRelicClientAPI, error) {
 	// Check if cache is still valid
 	if cachedNRClient != nil {
 		ttl := getClientTTL()
 		if time.Since(clientCacheTime) < ttl {
 			// Return cached client (even if there was an error before)
 			log.Debug("Returning cached New Relic client")
+			rec.Count(metrics.TierAdvanced, "forwarder.client.cache", 1, map[string]interface{}{"result": "hit"})
 			return cachedNRClient, nrClientError
 		}
 	}
 
 	// Cache is invalid, expired, or doesn't exist - create new client
 	log.Debug("Initializing/refreshing New Relic client")
+	rec.Count(metrics.TierAdvanced, "forwarder.client.cache", 1, map[string]interface{}{"result": "miss"})
 	cachedNRClient, nrClientError = createNRClient()
 	clientCacheTime = time.Now()
 

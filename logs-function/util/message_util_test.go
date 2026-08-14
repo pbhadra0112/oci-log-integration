@@ -9,7 +9,7 @@ import (
 
 // TestProduceMessageToChannel tests the ProduceMessageToChannel function
 func TestProduceMessageToChannel(t *testing.T) {
-	channel := make(chan common.DetailedLogsBatch, 1) 
+	channel := make(chan BatchMessage, 1)
 
 	currentBatch := common.LogData{
 		map[string]interface{}{
@@ -32,16 +32,19 @@ func TestProduceMessageToChannel(t *testing.T) {
 		"instrumentation.version":  common.InstrumentationVersion,
 	}
 
-	expectedDetailedLog := common.DetailedLogsBatch{{
-		CommonData: common.Common{
-			Attributes: attributes,
-		},
-		Entries: currentBatch,
-	}}
-	ProduceMessageToChannel(channel, currentBatch, attributes)
-	receivedDetailedLog := <-channel
+	expectedMessage := BatchMessage{
+		Batch: common.DetailedLogsBatch{{
+			CommonData: common.Common{
+				Attributes: attributes,
+			},
+			Entries: currentBatch,
+		}},
+		SizeBytes: 42,
+	}
+	ProduceMessageToChannel(channel, currentBatch, attributes, 42)
+	receivedMessage := <-channel
 
-	assert.Equal(t, expectedDetailedLog, receivedDetailedLog)
+	assert.Equal(t, expectedMessage, receivedMessage)
 
 	close(channel)
 }

@@ -2,9 +2,12 @@ package unmarshal
 
 import (
 	"bytes"
+	"os"
 	"testing"
 
 	"github.com/newrelic/oci-log-integration/logs-function/common"
+	"github.com/newrelic/oci-log-integration/logs-function/metrics"
+	"github.com/newrelic/oci-log-integration/logs-function/metrics/metricstest"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -43,6 +46,36 @@ func TestUnmarshalJSONOCILoggingData(t *testing.T) {
 
 	assert.Equal(t, expected.EventType, event.EventType)
 	assert.Equal(t, expected.OCILoggingEvent, event.OCILoggingEvent)
+}
+
+// TestUnmarshal_RecordsBytesReceived verifies forwarder.bytes.received is recorded on a
+// successful unmarshal, at the advanced tier.
+func TestUnmarshal_RecordsBytesReceived(t *testing.T) {
+	assert.NoError(t, os.Setenv(common.MetricsTier, common.MetricsTierAdvanced))
+	defer os.Unsetenv(common.MetricsTier)
+
+	rec := metrics.NewRecorder(nil)
+	var event Event
+	assert.NoError(t, event.Unmarshal(bytes.NewReader([]byte(`[{"message":"hi"}]`)), rec))
+
+	names := metricstest.FlushedMetricNames(t, rec)
+	assert.True(t, names["forwarder.bytes.received"])
+}
+
+// TestUnmarshal_RecordsDecodeErrors verifies forwarder.decode.errors is recorded right
+// before the panic on invalid input, at the advanced tier.
+func TestUnmarshal_RecordsDecodeErrors(t *testing.T) {
+	assert.NoError(t, os.Setenv(common.MetricsTier, common.MetricsTierAdvanced))
+	defer os.Unsetenv(common.MetricsTier)
+
+	rec := metrics.NewRecorder(nil)
+	var event Event
+	assert.Panics(t, func() {
+		_ = event.Unmarshal(bytes.NewReader([]byte(`{not valid json`)), rec)
+	})
+
+	names := metricstest.FlushedMetricNames(t, rec)
+	assert.True(t, names["forwarder.decode.errors"])
 }
 
 // TestUnmarshalSingleOCILoggingEvent tests unmarshaling a single nested JSON log event

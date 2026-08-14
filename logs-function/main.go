@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/fnproject/fdk-go"
 	"github.com/newrelic/oci-log-integration/logs-function/common"
@@ -50,10 +51,16 @@ func handleFunction(ctx context.Context, in io.Reader, out io.Writer) {
 	}()
 
 	// Create NewRelic client during function invocation, not startup
-	nrClient, err := util.NewNRClient()
+	nrClient, err := util.NewNRClient(rec)
 	if err != nil {
+		rec.Count(metrics.TierAdvanced, "forwarder.secret.fetch.errors", 1, nil)
 		log.Panicf("error initializing newrelic client: %v", err)
 	}
+
+	runStart := time.Now()
+	defer func() {
+		rec.Summary(metrics.TierAdvanced, "forwarder.run.duration", time.Since(runStart).Seconds(), nil)
+	}()
 
 	handleFunctionWithClient(ctx, in, out, nrClient, rec)
 }
@@ -67,7 +74,7 @@ func handleFunctionWithClient(ctx context.Context, in io.Reader, _ io.Writer, nr
 		log.Panicf("Error unmarshalling event: %v", err)
 	}
 
-	channel := make(chan common.DetailedLogsBatch, common.MessageChannelSize)
+	channel := make(chan util.BatchMessage, common.MessageChannelSize)
 	var wg sync.WaitGroup
 	wg.Add(common.NumberOfWorkers)
 

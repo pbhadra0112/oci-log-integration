@@ -3,6 +3,7 @@ package unmarshal
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 
 	"github.com/newrelic/oci-log-integration/logs-function/common"
@@ -29,6 +30,7 @@ func (event *Event) Unmarshal(in io.Reader, rec *metrics.Recorder) error {
 	if err != nil {
 		log.Panicf("Error reading incoming payload: %v\n", err)
 	}
+	rec.Count(metrics.TierAdvanced, "forwarder.bytes.received", float64(len(payloadBytes)), nil)
 
 	var incomingLogEvent common.OCILoggingEvent
 	if err := json.Unmarshal(payloadBytes, &incomingLogEvent); err == nil {
@@ -36,6 +38,7 @@ func (event *Event) Unmarshal(in io.Reader, rec *metrics.Recorder) error {
 		event.OCILoggingEvent = incomingLogEvent
 		rec.Count(metrics.TierBasic, "forwarder.records.received", float64(len(incomingLogEvent)), nil)
 	} else {
+		rec.Count(metrics.TierAdvanced, "forwarder.decode.errors", 1, map[string]interface{}{"error_class": fmt.Sprintf("%T", err)})
 		log.Panicf("Error decoding incoming log events payload: %v", err)
 	}
 

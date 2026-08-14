@@ -22,15 +22,23 @@ func (m *MockClient) CreateMetricEntry(metricEntry interface{}) error {
 	return args.Error(0)
 }
 
-// FlushedMetricNames flushes rec through a MockClient and returns the set of metric names
-// that were sent.
-func FlushedMetricNames(t *testing.T, rec *metrics.Recorder) map[string]bool {
+// FlushedPayload flushes rec through a MockClient and returns the raw payload that would
+// have been sent to New Relic's Metric API, for tests that need to assert on more than just
+// which metric names fired (e.g. an actual value or attribute).
+func FlushedPayload(t *testing.T, rec *metrics.Recorder) []map[string]interface{} {
 	t.Helper()
 	client := &MockClient{}
 	client.On("CreateMetricEntry", mock.Anything).Return(nil)
 	assert.NoError(t, rec.Flush(client))
 
-	payload := client.Calls[0].Arguments[0].([]map[string]interface{})
+	return client.Calls[0].Arguments[0].([]map[string]interface{})
+}
+
+// FlushedMetricNames flushes rec through a MockClient and returns the set of metric names
+// that were sent.
+func FlushedMetricNames(t *testing.T, rec *metrics.Recorder) map[string]bool {
+	t.Helper()
+	payload := FlushedPayload(t, rec)
 	metricsList := payload[0]["metrics"].([]map[string]interface{})
 
 	names := map[string]bool{}
