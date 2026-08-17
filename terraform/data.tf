@@ -2,6 +2,12 @@ data "oci_identity_tenancy" "current_tenancy" {
   tenancy_id = var.tenancy_ocid
 }
 
+# Human-readable name (not OCID) for the compartment this stack deploys into, so multiple
+# forwarders reporting into one New Relic account can be told apart in dashboards.
+data "oci_identity_compartment" "current_compartment" {
+  id = local.compartment_ocid
+}
+
 data "oci_identity_region_subscriptions" "subscriptions" {
   tenancy_id = var.tenancy_ocid
 }

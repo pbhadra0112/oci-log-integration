@@ -25,6 +25,8 @@ resource "oci_functions_application" "logging_function_app" {
     "CLIENT_TTL"             = local.client_ttl
     "NEW_RELIC_REGION"       = var.new_relic_region
     "FORWARDER_METRICS_TIER" = var.metrics_tier
+    "TENANCY_NAME"           = data.oci_identity_tenancy.current_tenancy.name
+    "COMPARTMENT_NAME"       = data.oci_identity_compartment.current_compartment.name
   }
   defined_tags               = {}
   display_name               = local.function_app_name

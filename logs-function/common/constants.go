@@ -52,3 +52,17 @@ const (
 // FunctionNameEnvVar is the environment variable the Fn/OCI Functions runtime injects
 // automatically at invocation time with the function's name.
 const FunctionNameEnvVar = "FN_FN_NAME"
+
+// ApplicationNameEnvVar is the environment variable the Fn/OCI Functions runtime injects
+// automatically at invocation time with the function's parent Application's name.
+const ApplicationNameEnvVar = "FN_APP_NAME"
+
+// TenancyName is the environment variable name for the OCI tenancy's display name, set by
+// Terraform (from data.oci_identity_tenancy) so multiple forwarders reporting into one New
+// Relic account can be told apart by tenancy without an extra per-invocation API call.
+const TenancyName = "TENANCY_NAME"
+
+// CompartmentName is the environment variable name for the OCI compartment's display name
+// (not OCID -- kept human-readable and bounded), set by Terraform for the same reason as
+// TenancyName.
+const CompartmentName = "COMPARTMENT_NAME"
