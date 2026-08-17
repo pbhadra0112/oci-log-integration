@@ -119,9 +119,12 @@ func flushMetrics(rec *metrics.Recorder) {
 // invocation emits.
 func commonMetricAttributes() map[string]interface{} {
 	return map[string]interface{}{
-		"cloud":         common.InstrumentationProvider,
-		"region":        os.Getenv(common.VaultRegion),
-		"version":       common.InstrumentationVersion,
-		"function_name": os.Getenv(common.FunctionNameEnvVar),
+		"cloud":            common.InstrumentationProvider,
+		"region":           os.Getenv(common.VaultRegion),
+		"version":          common.InstrumentationVersion,
+		"function_name":    os.Getenv(common.FunctionNameEnvVar),
+		"application_name": os.Getenv(common.ApplicationNameEnvVar),
+		"tenancy_name":     os.Getenv(common.TenancyName),
+		"compartment_name": os.Getenv(common.CompartmentName),
 	}
 }
