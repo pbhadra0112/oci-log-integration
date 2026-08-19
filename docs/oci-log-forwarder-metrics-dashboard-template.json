@@ -1,0 +1,1042 @@
+{
+  "name": "OCI Log Forwarder monitoring",
+  "description": null,
+  "permissions": "PUBLIC_READ_WRITE",
+  "pages": [
+    {
+      "name": "OCI Forwarder: Basic Metrics",
+      "description": null,
+      "widgets": [
+        {
+          "title": "",
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 6,
+            "height": 6
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.markdown"
+          },
+          "rawConfiguration": {
+            "text": "# README\n\n## About this page\nThis page displays the **basic-tier** `forwarder.*` custom metrics emitted by the [OCI Log Forwarder](https://github.com/newrelic/oci-log-integration) Function. These metrics are available when `metrics_tier` is set to `basic` or `advanced` in the Terraform configuration.\n\n## How to filter\n1. Select the OCI Function(s) you want to monitor using the **Function Name** variable above.\n2. All charts are faceted by `function_name` and `tenancy_name` so you can correlate metrics across tenancies.\n\n## Metrics on this page\n- **forwarder.invocations** \u2014 one count per function invocation, tagged with `status=success` or `status=error`.\n- **forwarder.records.received** \u2014 total OCI log records received from the incoming event payload.\n- **forwarder.records.delivered** \u2014 records successfully posted to the New Relic Logs API (tagged `status=success`).\n- **forwarder.records.dropped** \u2014 records lost due to a delivery error (tagged `reason=delivery_error`).\n- **forwarder.delivery.duration** \u2014 HTTP round-trip time (seconds) for each New Relic Logs API call, tagged with `status=success` or `status=error`.\n- **forwarder.pipeline.lag** \u2014 time in seconds between the OCI log event timestamp and when the function processed it.\n\n## Common dimensions\nAll metrics carry: `cloud`, `region`, `version`, `function_name`, `application_name`, `tenancy_name`, `compartment_name`."
+          }
+        },
+        {
+          "title": "Forwarder info",
+          "layout": {
+            "column": 7,
+            "row": 1,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.table"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT latest(version) AS 'Version', latest(cloud) AS 'Cloud', latest(region) AS 'Region', latest(application_name) AS 'Application', latest(compartment_name) AS 'Compartment' FROM Metric WHERE metricName = 'forwarder.invocations' AND function_name IN ({{function_name}}) SINCE 1 hour ago FACET function_name, tenancy_name LIMIT MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            }
+          }
+        },
+        {
+          "title": "Invocations",
+          "layout": {
+            "column": 7,
+            "row": 4,
+            "width": 3,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT sum(`forwarder.invocations`) AS 'Total', filter(sum(`forwarder.invocations`), WHERE status = 'success') AS 'Success', filter(sum(`forwarder.invocations`), WHERE status = 'error') AS 'Error' FROM Metric WHERE function_name IN ({{function_name}})"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "thresholds": [
+              {
+                "alertSeverity": "WARNING",
+                "value": 0
+              }
+            ]
+          }
+        },
+        {
+          "title": "Avg pipeline lag",
+          "layout": {
+            "column": 10,
+            "row": 4,
+            "width": 3,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT average(`forwarder.pipeline.lag`) AS 'Avg lag (s)', max(`forwarder.pipeline.lag`) AS 'Max lag (s)' FROM Metric WHERE function_name IN ({{function_name}})"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "units": {
+              "unit": "SECONDS"
+            }
+          }
+        },
+        {
+          "title": "",
+          "layout": {
+            "column": 1,
+            "row": 7,
+            "width": 12,
+            "height": 1
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.markdown"
+          },
+          "rawConfiguration": {
+            "text": "# RECORD FLOW"
+          }
+        },
+        {
+          "title": "Records received (per minute)",
+          "layout": {
+            "column": 1,
+            "row": 8,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT rate(sum(`forwarder.records.received`), 1 minute) AS 'records/min' FROM Metric WHERE function_name IN ({{function_name}}) FACET function_name, tenancy_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "Records delivered (per minute)",
+          "layout": {
+            "column": 5,
+            "row": 8,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT rate(sum(`forwarder.records.delivered`), 1 minute) AS 'records/min' FROM Metric WHERE function_name IN ({{function_name}}) FACET function_name, tenancy_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "Records dropped (per minute)",
+          "layout": {
+            "column": 9,
+            "row": 8,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT rate(sum(`forwarder.records.dropped`), 1 minute) AS 'dropped/min' FROM Metric WHERE function_name IN ({{function_name}}) FACET function_name, tenancy_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "",
+          "layout": {
+            "column": 1,
+            "row": 11,
+            "width": 12,
+            "height": 1
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.markdown"
+          },
+          "rawConfiguration": {
+            "text": "# DELIVERY HEALTH"
+          }
+        },
+        {
+          "title": "Invocations over time",
+          "layout": {
+            "column": 1,
+            "row": 12,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT sum(`forwarder.invocations`) AS 'invocations' FROM Metric WHERE function_name IN ({{function_name}}) FACET status, function_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "Delivery duration (avg seconds)",
+          "layout": {
+            "column": 5,
+            "row": 12,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT average(`forwarder.delivery.duration`) AS 'avg (s)' FROM Metric WHERE function_name IN ({{function_name}}) FACET status, function_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "units": {
+              "unit": "SECONDS"
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "Record drop rate",
+          "layout": {
+            "column": 9,
+            "row": 12,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT sum(`forwarder.records.dropped`) / sum(`forwarder.records.received`) * 100 AS '% dropped' FROM Metric WHERE function_name IN ({{function_name}})"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "thresholds": [
+              {
+                "alertSeverity": "WARNING",
+                "value": 1
+              },
+              {
+                "alertSeverity": "CRITICAL",
+                "value": 5
+              }
+            ]
+          }
+        },
+        {
+          "title": "",
+          "layout": {
+            "column": 1,
+            "row": 15,
+            "width": 12,
+            "height": 1
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.markdown"
+          },
+          "rawConfiguration": {
+            "text": "# PIPELINE LAG"
+          }
+        },
+        {
+          "title": "Pipeline lag over time (seconds)",
+          "layout": {
+            "column": 1,
+            "row": 16,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT average(`forwarder.pipeline.lag`) AS 'avg (s)', max(`forwarder.pipeline.lag`) AS 'max (s)' FROM Metric WHERE function_name IN ({{function_name}}) FACET function_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "units": {
+              "unit": "SECONDS"
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "Delivery success vs drop rate over time",
+          "layout": {
+            "column": 7,
+            "row": 16,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT sum(`forwarder.records.delivered`) AS 'Delivered', sum(`forwarder.records.dropped`) AS 'Dropped' FROM Metric WHERE function_name IN ({{function_name}}) FACET function_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "OCI Forwarder: Advanced Metrics",
+      "description": null,
+      "widgets": [
+        {
+          "title": "",
+          "layout": {
+            "column": 1,
+            "row": 1,
+            "width": 4,
+            "height": 12
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.markdown"
+          },
+          "rawConfiguration": {
+            "text": "# README\n\n## About this page\nThis page displays the **advanced-tier** `forwarder.*` custom metrics emitted by the [OCI Log Forwarder](https://github.com/newrelic/oci-log-integration) Function. These metrics are **in addition** to the basic-tier metrics shown on the previous page. They are available when `metrics_tier = advanced` in the Terraform configuration.\n\n## Metrics on this page\n\n### Byte volumes\n- **forwarder.bytes.received** \u2014 raw payload bytes read from the OCI invocation input.\n- **forwarder.bytes.delivered** \u2014 bytes sent to the New Relic Logs API per successful batch.\n\n### Errors\n- **forwarder.decode.errors** \u2014 failures to JSON-decode the incoming OCI event payload (tagged with `error_class`).\n- **forwarder.serialize.errors** \u2014 failures to JSON-marshal individual log entries during batch assembly.\n- **forwarder.records.oversized** \u2014 records that individually exceed the New Relic 1 MB payload limit.\n- **forwarder.delivery.errors** \u2014 delivery errors tagged with `error_class` and `status=error`.\n- **forwarder.secret.fetch.errors** \u2014 failures to fetch the New Relic license key from OCI Vault.\n\n### Batching & performance\n- **forwarder.batches.created** \u2014 number of batches assembled per invocation.\n- **forwarder.batch.size_bytes** \u2014 distribution of batch sizes in bytes (min/avg/max per invocation).\n- **forwarder.run.duration** \u2014 total function run time in seconds (excluding the metrics flush itself).\n\n### Client cache\n- **forwarder.client.cache** \u2014 New Relic client cache outcome tagged with `result=hit` or `result=miss`."
+          }
+        },
+        {
+          "title": "Bytes received (per minute)",
+          "layout": {
+            "column": 5,
+            "row": 1,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT rate(sum(`forwarder.bytes.received`), 1 minute) AS 'bytes/min' FROM Metric WHERE function_name IN ({{function_name}}) FACET function_name, tenancy_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "units": {
+              "unit": "BYTES_PER_MINUTE"
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "Bytes delivered (per minute)",
+          "layout": {
+            "column": 9,
+            "row": 1,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT rate(sum(`forwarder.bytes.delivered`), 1 minute) AS 'bytes/min' FROM Metric WHERE function_name IN ({{function_name}}) FACET function_name, tenancy_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "units": {
+              "unit": "BYTES_PER_MINUTE"
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "Byte delivery ratio over time",
+          "layout": {
+            "column": 5,
+            "row": 4,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT sum(`forwarder.bytes.delivered`) / sum(`forwarder.bytes.received`) * 100 AS 'delivered %' FROM Metric WHERE function_name IN ({{function_name}}) FACET function_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "Batch size (bytes)",
+          "layout": {
+            "column": 9,
+            "row": 4,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT min(`forwarder.batch.size_bytes`) AS 'min', average(`forwarder.batch.size_bytes`) AS 'avg', max(`forwarder.batch.size_bytes`) AS 'max' FROM Metric WHERE function_name IN ({{function_name}}) FACET function_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "units": {
+              "unit": "BYTES"
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "Decode errors (per minute)",
+          "layout": {
+            "column": 5,
+            "row": 7,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT rate(sum(`forwarder.decode.errors`), 1 minute) AS 'errors/min' FROM Metric WHERE function_name IN ({{function_name}}) FACET error_class, function_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "Serialize errors (per minute)",
+          "layout": {
+            "column": 9,
+            "row": 7,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT rate(sum(`forwarder.serialize.errors`), 1 minute) AS 'errors/min' FROM Metric WHERE function_name IN ({{function_name}}) FACET function_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "Oversized records (per minute)",
+          "layout": {
+            "column": 5,
+            "row": 10,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT rate(sum(`forwarder.records.oversized`), 1 minute) AS 'oversized/min' FROM Metric WHERE function_name IN ({{function_name}}) FACET function_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "Secret fetch errors",
+          "layout": {
+            "column": 9,
+            "row": 10,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT sum(`forwarder.secret.fetch.errors`) AS 'Secret fetch errors' FROM Metric WHERE function_name IN ({{function_name}})"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "thresholds": [
+              {
+                "alertSeverity": "CRITICAL",
+                "value": 0
+              }
+            ]
+          }
+        },
+        {
+          "title": "",
+          "layout": {
+            "column": 1,
+            "row": 13,
+            "width": 12,
+            "height": 1
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.markdown"
+          },
+          "rawConfiguration": {
+            "text": "# BATCHING, PERFORMANCE & CACHE"
+          }
+        },
+        {
+          "title": "Batches created (per minute)",
+          "layout": {
+            "column": 1,
+            "row": 14,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT rate(sum(`forwarder.batches.created`), 1 minute) AS 'batches/min' FROM Metric WHERE function_name IN ({{function_name}}) FACET function_name, tenancy_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "Run duration (seconds)",
+          "layout": {
+            "column": 5,
+            "row": 14,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT min(`forwarder.run.duration`) AS 'min (s)', average(`forwarder.run.duration`) AS 'avg (s)', max(`forwarder.run.duration`) AS 'max (s)' FROM Metric WHERE function_name IN ({{function_name}}) FACET function_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "units": {
+              "unit": "SECONDS"
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "Client cache hit rate",
+          "layout": {
+            "column": 9,
+            "row": 14,
+            "width": 4,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.billboard"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT filter(sum(`forwarder.client.cache`), WHERE result = 'hit') / sum(`forwarder.client.cache`) * 100 AS 'cache hit rate %' FROM Metric WHERE function_name IN ({{function_name}})"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            }
+          }
+        },
+        {
+          "title": "Delivery errors by class (per minute)",
+          "layout": {
+            "column": 1,
+            "row": 17,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT rate(sum(`forwarder.delivery.errors`), 1 minute) AS 'errors/min' FROM Metric WHERE function_name IN ({{function_name}}) FACET error_class, function_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        },
+        {
+          "title": "Client cache hits vs misses over time",
+          "layout": {
+            "column": 7,
+            "row": 17,
+            "width": 6,
+            "height": 3
+          },
+          "linkedEntityGuids": null,
+          "visualization": {
+            "id": "viz.line"
+          },
+          "rawConfiguration": {
+            "facet": {
+              "showOtherSeries": false
+            },
+            "legend": {
+              "enabled": true
+            },
+            "nrqlQueries": [
+              {
+                "accountIds": [
+                  2813435
+                ],
+                "query": "SELECT sum(`forwarder.client.cache`) AS 'count' FROM Metric WHERE function_name IN ({{function_name}}) FACET result, function_name TIMESERIES MAX"
+              }
+            ],
+            "platformOptions": {
+              "ignoreTimeRange": false
+            },
+            "yAxisLeft": {
+              "zero": true
+            },
+            "yAxisRight": {
+              "zero": true
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variables": [
+    {
+      "name": "function_name",
+      "items": null,
+      "defaultValues": [
+        {
+          "value": {
+            "string": "*"
+          }
+        }
+      ],
+      "nrqlQuery": {
+        "accountIds": [
+          2813435
+        ],
+        "query": "SELECT uniques(function_name) FROM Metric WHERE metricName = 'forwarder.invocations'"
+      },
+      "options": {
+        "ignoreTimeRange": false
+      },
+      "title": "Function Name",
+      "type": "NRQL",
+      "isMultiSelection": true,
+      "replacementStrategy": "STRING"
+    }
+  ]
+}
