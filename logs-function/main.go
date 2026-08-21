@@ -85,7 +85,7 @@ func handleFunctionWithClient(ctx context.Context, in io.Reader, _ io.Writer, nr
 
 	switch event.EventType {
 	case unmarshal.OCI_LOGGING:
-		loggroup.ProcessLogs(event.OCILoggingEvent, channel, rec)
+		loggroup.ProcessLogs(ctx, event.OCILoggingEvent, channel, rec)
 	default:
 		log.Warnf("Unknown event type: %s", event.EventType)
 	}

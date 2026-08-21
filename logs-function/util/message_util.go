@@ -2,6 +2,8 @@
 package util
 
 import (
+	"context"
+
 	"github.com/newrelic/oci-log-integration/logs-function/common"
 )
 
@@ -14,9 +16,13 @@ type BatchMessage struct {
 	SizeBytes int
 }
 
-// ProduceMessageToChannel sends a log batch to a channel for further processing.
-func ProduceMessageToChannel(channel chan BatchMessage, currentBatch common.LogData, attributes common.LogAttributes, sizeBytes int) {
-	channel <- BatchMessage{
+// ProduceMessageToChannel sends a log batch to a channel for further processing. It returns
+// false instead of blocking forever if ctx is cancelled first -- e.g. all consumer workers are
+// stuck on a slow New Relic API call and the channel buffer is full -- so the caller can bail
+// out of processing the rest of the invocation instead of hanging until the OCI function's own
+// hard timeout kills it.
+func ProduceMessageToChannel(ctx context.Context, channel chan BatchMessage, currentBatch common.LogData, attributes common.LogAttributes, sizeBytes int) bool {
+	msg := BatchMessage{
 		Batch: common.DetailedLogsBatch{{
 			CommonData: common.Common{
 				Attributes: attributes,
@@ -24,5 +30,12 @@ func ProduceMessageToChannel(channel chan BatchMessage, currentBatch common.LogD
 			Entries: currentBatch,
 		}},
 		SizeBytes: sizeBytes,
+	}
+
+	select {
+	case channel <- msg:
+		return true
+	case <-ctx.Done():
+		return false
 	}
 }

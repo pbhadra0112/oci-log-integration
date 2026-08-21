@@ -1,7 +1,9 @@
 package util
 
 import (
+	"context"
 	"testing"
+	"time"
 
 	"github.com/newrelic/oci-log-integration/logs-function/common"
 	"github.com/stretchr/testify/assert"
@@ -41,10 +43,24 @@ func TestProduceMessageToChannel(t *testing.T) {
 		}},
 		SizeBytes: 42,
 	}
-	ProduceMessageToChannel(channel, currentBatch, attributes, 42)
+	sent := ProduceMessageToChannel(context.Background(), channel, currentBatch, attributes, 42)
+	assert.True(t, sent)
 	receivedMessage := <-channel
 
 	assert.Equal(t, expectedMessage, receivedMessage)
 
 	close(channel)
+}
+
+// TestProduceMessageToChannel_ContextCancelled verifies the send bails out instead of
+// blocking forever when the channel is full and ctx is cancelled.
+func TestProduceMessageToChannel_ContextCancelled(t *testing.T) {
+	channel := make(chan BatchMessage) // unbuffered: the send below can never succeed on its own
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	sent := ProduceMessageToChannel(ctx, channel, common.LogData{}, common.LogAttributes{}, 1)
+
+	assert.False(t, sent)
 }

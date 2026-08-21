@@ -1,6 +1,7 @@
 package loggroup
 
 import (
+	"context"
 	"os"
 	"testing"
 	"time"
@@ -86,7 +87,7 @@ func TestProcessLogs(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			channel := make(chan util.BatchMessage, 10)
 
-			ProcessLogs(tt.ociLoggingEvent, channel, nil)
+			ProcessLogs(context.Background(), tt.ociLoggingEvent, channel, nil)
 
 			close(channel)
 			var batches []common.DetailedLogsBatch
@@ -192,7 +193,7 @@ func TestSplitLogsIntoBatches(t *testing.T) {
 				"test.attribute": "test.value",
 			}
 
-			splitLogsIntoBatches(tt.logs, tt.maxPayloadSize, commonAttributes, channel, nil)
+			splitLogsIntoBatches(context.Background(), tt.logs, tt.maxPayloadSize, commonAttributes, channel, nil)
 
 			close(channel)
 			var batches []common.DetailedLogsBatch
@@ -233,7 +234,7 @@ func TestSplitLogsIntoBatchesPayloadSizeAccuracy(t *testing.T) {
 		"test": "value",
 	}
 
-	splitLogsIntoBatches(logs, 50, commonAttributes, channel, nil)
+	splitLogsIntoBatches(context.Background(), logs, 50, commonAttributes, channel, nil)
 
 	close(channel)
 	var batches []common.DetailedLogsBatch
@@ -261,7 +262,7 @@ func TestProcessLogsWithChannel(t *testing.T) {
 
 	channel := make(chan util.BatchMessage, 5)
 
-	ProcessLogs(logs, channel, nil)
+	ProcessLogs(context.Background(), logs, channel, nil)
 
 	select {
 	case msg := <-channel:
@@ -293,7 +294,7 @@ func TestProcessLogsAttributes(t *testing.T) {
 
 	channel := make(chan util.BatchMessage, 1)
 
-	ProcessLogs(logs, channel, nil)
+	ProcessLogs(context.Background(), logs, channel, nil)
 
 	close(channel)
 	msg := <-channel
@@ -333,7 +334,7 @@ func TestSplitLogsIntoBatches_PipelineLag(t *testing.T) {
 		},
 	}
 
-	splitLogsIntoBatches(logs, 1000, common.LogAttributes{}, channel, rec)
+	splitLogsIntoBatches(context.Background(), logs, 1000, common.LogAttributes{}, channel, rec)
 	close(channel)
 	for range channel {
 	}
@@ -356,7 +357,7 @@ func TestSplitLogsIntoBatches_BatchingMetrics(t *testing.T) {
 		map[string]interface{}{"message": "two"},
 	}
 
-	splitLogsIntoBatches(logs, 1000, common.LogAttributes{}, channel, rec)
+	splitLogsIntoBatches(context.Background(), logs, 1000, common.LogAttributes{}, channel, rec)
 	close(channel)
 	for range channel {
 	}
@@ -379,7 +380,7 @@ func TestSplitLogsIntoBatches_RecordsOversized(t *testing.T) {
 		map[string]interface{}{"message": "this single log entry is deliberately longer than the tiny max payload size configured below"},
 	}
 
-	splitLogsIntoBatches(logs, 10, common.LogAttributes{}, channel, rec)
+	splitLogsIntoBatches(context.Background(), logs, 10, common.LogAttributes{}, channel, rec)
 	close(channel)
 	for range channel {
 	}
@@ -404,7 +405,7 @@ func TestSplitLogsIntoBatches_RecordsOversized_NotFirstInStream(t *testing.T) {
 		map[string]interface{}{"message": "this second log entry is deliberately longer than the tiny max payload size configured below"},
 	}
 
-	splitLogsIntoBatches(logs, 30, common.LogAttributes{}, channel, rec)
+	splitLogsIntoBatches(context.Background(), logs, 30, common.LogAttributes{}, channel, rec)
 	close(channel)
 	for range channel {
 	}
@@ -426,7 +427,7 @@ func TestSplitLogsIntoBatches_SerializeErrors(t *testing.T) {
 		map[string]interface{}{"unmarshalable": make(chan int)},
 	}
 
-	splitLogsIntoBatches(logs, 1000, common.LogAttributes{}, channel, rec)
+	splitLogsIntoBatches(context.Background(), logs, 1000, common.LogAttributes{}, channel, rec)
 	close(channel)
 	for range channel {
 	}
