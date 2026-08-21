@@ -127,9 +127,9 @@ func (r *Recorder) Flush(client ClientAPI) error {
 	}
 
 	r.mu.Lock()
-	defer r.mu.Unlock()
 
 	if len(r.counts) == 0 && len(r.summaries) == 0 {
+		r.mu.Unlock()
 		return nil
 	}
 
@@ -187,6 +187,8 @@ func (r *Recorder) Flush(client ClientAPI) error {
 			"metrics": dataPoints,
 		},
 	}
+
+	r.mu.Unlock()
 
 	return client.CreateMetricEntry(payload)
 }
