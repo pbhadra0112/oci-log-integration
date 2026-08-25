@@ -93,10 +93,10 @@ func newOCISecretsManagerClient() (OCISecretsManagerAPI, error) {
 // It returns the New Relic Ingest License key and an error if any.
 func GetLicenseKey() (key string, err error) {
 	ctx := context.Background()
-	log.Debug("fetching license key from OCI vault")
 
 	secretOCID := os.Getenv(common.SecretOCID)
 	vaultRegion := os.Getenv(common.VaultRegion)
+	log.WithField("secretOCID", secretOCID).WithField("vaultRegion", vaultRegion).Debug("fetching license key from OCI vault")
 
 	secretsClient, err := newOCISecretsManagerClient()
 	if err != nil {

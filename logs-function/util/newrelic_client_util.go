@@ -41,7 +41,13 @@ func ConsumeLogBatches(ctx context.Context, channel <-chan common.DetailedLogsBa
 				return
 			}
 			if err := nrClientAPI.CreateLogEntry(batch); err != nil {
-				log.Errorf("error posting Log entry: %v", err)
+				entryCount := 0
+				for _, detailedLog := range batch {
+					entryCount += len(detailedLog.Entries)
+				}
+				log.WithField("entryCount", entryCount).
+					WithField("error", err).
+					Error("error posting log entry, batch dropped")
 				// Continue processing other batches instead of terminating
 				continue
 			}
@@ -93,7 +99,8 @@ func getClientTTL() time.Duration {
 
 // createNRClient creates a new NewRelic client instance
 func createNRClient() (NewRelicClientAPI, error) {
-	nrRegion, _ := region.Get(region.Name(os.Getenv(common.NewRelicRegion)))
+	regionName := os.Getenv(common.NewRelicRegion)
+	nrRegion, _ := region.Get(region.Name(regionName))
 	var nrClient logging.Logs
 	cfg := config.Config{
 		Compression: config.Compression.Gzip,
@@ -106,10 +113,15 @@ func createNRClient() (NewRelicClientAPI, error) {
 	}
 
 	if err := cfg.SetRegion(nrRegion); err != nil {
+		log.WithField("region", regionName).WithField("error", err).Error("failed to set New Relic region")
 		return &nrClient, err
 	}
 
 	licenseKey, err := GetLicenseKey()
+	if err != nil {
+		log.WithField("error", err).Error("failed to fetch New Relic license key")
+		return &nrClient, err
+	}
 	cfg.LicenseKey = licenseKey
 	nrClient = logging.New(cfg)
 	return &nrClient, err

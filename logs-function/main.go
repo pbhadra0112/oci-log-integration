@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"io"
+	"runtime/debug"
 	"sync"
 
 	"github.com/fnproject/fdk-go"
@@ -29,12 +30,21 @@ func main() {
 // handleFunction processes OCI logging events and forwards them to New Relic.
 // It creates the NewRelic client on each invocation (like your working simple function).
 func handleFunction(ctx context.Context, in io.Reader, out io.Writer) {
+	defer func() {
+		if r := recover(); r != nil {
+			log.WithField("panic", r).
+				WithField("stack", string(debug.Stack())).
+				Error("function invocation failed")
+			panic(r)
+		}
+	}()
+
 	// Create NewRelic client during function invocation, not startup
 	nrClient, err := util.NewNRClient()
 	if err != nil {
 		log.Panicf("error initializing newrelic client: %v", err)
 	}
-	
+
 	handleFunctionWithClient(ctx, in, out, nrClient)
 }
 
@@ -56,9 +66,10 @@ func handleFunctionWithClient(ctx context.Context, in io.Reader, _ io.Writer, nr
 		go util.ConsumeLogBatches(ctx, channel, &wg, nrClient)
 	}
 
+	var batchCount, logCount, skippedCount int
 	switch event.EventType {
 	case unmarshal.OCI_LOGGING:
-		loggroup.ProcessLogs(event.OCILoggingEvent, channel)
+		batchCount, logCount, skippedCount = loggroup.ProcessLogs(event.OCILoggingEvent, channel)
 	default:
 		log.Warnf("Unknown event type: %s", event.EventType)
 	}
@@ -67,4 +78,9 @@ func handleFunctionWithClient(ctx context.Context, in io.Reader, _ io.Writer, nr
 	close(channel)
 	// Wait for goroutines to finish processing
 	wg.Wait()
+
+	log.WithField("batchCount", batchCount).
+		WithField("logCount", logCount).
+		WithField("skippedCount", skippedCount).
+		Debug("invocation complete")
 }

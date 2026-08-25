@@ -29,11 +29,19 @@ func (event *Event) Unmarshal(in io.Reader) error {
 		log.Panicf("Error reading incoming payload: %v\n", err)
 	}
 
+	log.WithField("payloadSizeBytes", len(payloadBytes)).Debug("read incoming payload")
+
 	var incomingLogEvent common.OCILoggingEvent
 	if err := json.Unmarshal(payloadBytes, &incomingLogEvent); err == nil {
 		event.EventType = OCI_LOGGING
 		event.OCILoggingEvent = incomingLogEvent
+		log.WithField("eventType", event.EventType).
+			WithField("recordCount", len(incomingLogEvent)).
+			Debug("successfully unmarshalled incoming payload")
 	} else {
+		log.WithField("payloadSizeBytes", len(payloadBytes)).
+			WithField("error", err).
+			Error("failed to decode incoming log events payload")
 		log.Panicf("Error decoding incoming log events payload: %v", err)
 	}
 
